@@ -132,6 +132,7 @@ def simulate_portfolio(
             max_weight=settings.max_weight,
             risk_free_rate=settings.risk_free_rate,
             horizon=horizon,
+            as_of=date,  # covariance must not see prices after this rebalance date
         )
         fwd_map = dict(zip(day["symbol"], day["fwd_return"]))
         ret = 0.0
