@@ -6,6 +6,7 @@ Commands:
   backtest     Run a walk-forward backtest and print a performance report.
   signal       Generate today's Top-N signal and send it to Telegram.
   advisory     Show today's trading-day status and action checklist.
+  briefing     Pre-market multi-LLM briefing (verify yesterday + news + orders).
 
 Run from the repo root, e.g.  `python -m settlex.cli signal --dry-run`.
 """
@@ -84,7 +85,7 @@ def cmd_backtest(args: argparse.Namespace) -> None:
 
 
 def cmd_signal(args: argparse.Namespace) -> None:
-    from .advisory import save_last_signal
+    from .advisory import append_signal_history, save_last_signal
     from .signals.generate import generate_signal
     from .signals.telegram import format_signal, send_message
 
@@ -93,10 +94,11 @@ def cmd_signal(args: argparse.Namespace) -> None:
     message = format_signal(result)
     print(message)
 
-    # Persist so `advisory` can show last signal summary next morning.
+    # Persist so `advisory`/`briefing` can recap and verify it next morning.
     if not args.synthetic:
         settings.ensure_dirs()
         save_last_signal(result, settings.data_dir)
+        append_signal_history(result, settings.data_dir)
 
     if args.dry_run:
         print("\n[dry-run] Not sending to Telegram.")
@@ -127,6 +129,30 @@ def cmd_advisory(args: argparse.Namespace) -> None:
         sys.exit(2)
     send_message(message, settings.telegram)
     print("\n[sent] Advisory delivered to Telegram.")
+
+
+def cmd_briefing(args: argparse.Namespace) -> None:
+    from .briefing import format_briefing, generate_briefing
+    from .signals.telegram import send_message
+
+    settings = get_settings()
+    briefing = generate_briefing(settings, synthetic=args.synthetic)
+    message = format_briefing(briefing)
+    print(message)
+    if briefing.get("providers_used"):
+        print(f"\n[llm] sections from: {', '.join(briefing['providers_used'])}")
+    else:
+        print("\n[llm] no LLM sections (no keys configured or all calls failed)")
+
+    if args.dry_run:
+        print("\n[dry-run] Not sending to Telegram.")
+        return
+    if not settings.telegram.is_complete:
+        print("\n[error] Telegram not configured. Set TELEGRAM_BOT_TOKEN and "
+              "TELEGRAM_CHAT_ID, or use --dry-run.")
+        sys.exit(2)
+    send_message(message, settings.telegram)
+    print("\n[sent] Briefing delivered to Telegram.")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -165,6 +191,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("advisory", help="show today's trading-day status and action checklist")
     p.add_argument("--dry-run", action="store_true", help="print only; do not send to Telegram")
     p.set_defaults(func=cmd_advisory)
+
+    p = sub.add_parser("briefing", help="pre-market briefing: verify yesterday + news + order plan (LLMs)")
+    p.add_argument("--synthetic", action="store_true")
+    p.add_argument("--dry-run", action="store_true", help="print only; do not send to Telegram")
+    p.set_defaults(func=cmd_briefing)
 
     return parser
 

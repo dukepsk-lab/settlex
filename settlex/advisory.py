@@ -44,6 +44,7 @@ _TH_MONTHS = [
 _TH_DAYS = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"]
 
 _LAST_SIGNAL_FILE = "last_signal.json"
+_SIGNAL_HISTORY_DIR = "signal_history"
 _SIGNAL_READY = dt.time(16, 35)  # 5-min buffer after SET close (16:30)
 
 
@@ -86,6 +87,34 @@ def load_last_signal(data_dir: Path) -> Optional[Dict]:
         return None
     try:
         with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def append_signal_history(signal: Dict, data_dir: Path) -> None:
+    """Persist a dated copy of the signal so the briefing can verify it later."""
+    date = signal.get("date")
+    if not date:
+        return
+    hist_dir = data_dir / _SIGNAL_HISTORY_DIR
+    hist_dir.mkdir(parents=True, exist_ok=True)
+    with open(hist_dir / f"{date}.json", "w", encoding="utf-8") as f:
+        json.dump(signal, f, ensure_ascii=False, indent=2)
+
+
+def load_previous_signal(data_dir: Path, before: str) -> Optional[Dict]:
+    """Return the most recent stored signal strictly before date ``before``."""
+    hist_dir = data_dir / _SIGNAL_HISTORY_DIR
+    if not hist_dir.exists():
+        return None
+    candidates = sorted(
+        p for p in hist_dir.glob("*.json") if p.stem < before
+    )
+    if not candidates:
+        return None
+    try:
+        with open(candidates[-1], "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return None

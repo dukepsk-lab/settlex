@@ -26,6 +26,8 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
 stationarity = ["statsmodels>=0.14"]
+# Optional LLM providers for the `briefing` command (each is independent).
+llm = ["anthropic>=0.40", "google-genai>=0.3", "openai>=1.40"]
 
 [project.scripts]
 settlex = "settlex.cli:main"

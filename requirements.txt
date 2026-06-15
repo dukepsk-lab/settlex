@@ -14,5 +14,10 @@ settrade-v2>=2.2.1
 # Optional: enables ADF-based fractional-differencing order search (features/fracdiff.py)
 # statsmodels>=0.14
 
+# Optional: LLM providers for the `briefing` command (pip install -e ".[llm]")
+# anthropic>=0.40
+# google-genai>=0.3
+# openai>=1.40
+
 # Dev/testing
 pytest>=7.0

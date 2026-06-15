@@ -78,11 +78,39 @@ class TelegramConfig:
 
 
 @dataclass
+class LLMConfig:
+    """Optional LLM providers for the daily briefing (each independent/optional)."""
+
+    anthropic_api_key: Optional[str] = None
+    anthropic_model: str = "claude-opus-4-8"
+    gemini_api_key: Optional[str] = None
+    gemini_model: str = "gemini-2.5-flash"
+    deepseek_api_key: Optional[str] = None
+    deepseek_model: str = "deepseek-chat"
+    deepseek_base_url: str = "https://api.deepseek.com"
+    enabled: bool = True
+
+    @classmethod
+    def from_env(cls) -> "LLMConfig":
+        return cls(
+            anthropic_api_key=_get("ANTHROPIC_API_KEY"),
+            anthropic_model=_get("ANTHROPIC_MODEL", "claude-opus-4-8"),
+            gemini_api_key=_get("GEMINI_API_KEY"),
+            gemini_model=_get("GEMINI_MODEL", "gemini-2.5-flash"),
+            deepseek_api_key=_get("DEEPSEEK_API_KEY"),
+            deepseek_model=_get("DEEPSEEK_MODEL", "deepseek-chat"),
+            deepseek_base_url=_get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+            enabled=_get("SETTLEX_LLM_ENABLED", "1") not in ("0", "false", "False"),
+        )
+
+
+@dataclass
 class Settings:
     """Top-level settlex settings."""
 
     settrade: SettradeConfig = field(default_factory=SettradeConfig.from_env)
     telegram: TelegramConfig = field(default_factory=TelegramConfig.from_env)
+    llm: LLMConfig = field(default_factory=LLMConfig.from_env)
 
     # Market-data backend: "yahoo" (free, no creds, EOD) or "settrade".
     data_source: str = field(default_factory=lambda: _get("SETTLEX_DATA_SOURCE", "yahoo").lower())

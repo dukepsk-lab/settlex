@@ -86,10 +86,38 @@ python -m settlex.cli signal
 # 5. Daily advisory: is today a trading day, when to run, last signal recap
 python -m settlex.cli advisory --dry-run
 python -m settlex.cli advisory
+
+# 6. Pre-market briefing (optional LLMs): verify yesterday + news + order plan
+python -m settlex.cli briefing --dry-run
+python -m settlex.cli briefing
 ```
 
 If installed with `pip install -e .`, the `settlex` console script is available
 (`settlex signal --dry-run`).
+
+### Pre-market briefing (multi-LLM, optional)
+
+`briefing` runs an **advisory** layer on top of the quant signal — ideal as a
+~07:00 cron job before the open. It (1) verifies yesterday's predictions against
+realised prices, (2) summarises news, and (3) writes an actionable order plan:
+
+| Provider | Role | Key |
+|----------|------|-----|
+| **DeepSeek** | verify yesterday's prediction accuracy | `DEEPSEEK_API_KEY` |
+| **Gemini** | summarise market/stock news (Google Search grounding) | `GEMINI_API_KEY` |
+| **Claude** | synthesise today's order checklist | `ANTHROPIC_API_KEY` |
+
+Install the SDKs with `pip install -e ".[llm]"`. Each provider is **independent
+and optional** — a missing key (or a failed call) simply omits that section; the
+deterministic target-allocation table always shows. **LLMs never change the
+Top-N or weights** — the ML model remains the sole decision-maker. Disable all
+LLM sections with `SETTLEX_LLM_ENABLED=0`.
+
+Example VPS cron (07:00 Asia/Bangkok, weekdays):
+
+```cron
+0 7 * * 1-5  cd /path/to/settlex && /path/to/.venv/bin/settlex briefing >> briefing.log 2>&1
+```
 
 ## How it fits together
 
@@ -103,8 +131,11 @@ settlex/
   portfolio/           # Top-N selection + Markowitz mean-variance optimiser
   backtest/            # walk-forward engine + financial metrics
   signals/             # live signal orchestration + Telegram delivery
+  llm/                 # optional Claude / Gemini / DeepSeek providers (briefing)
+  evaluation.py        # prediction-accuracy scoring (picks vs realised prices)
   advisory.py          # daily trading-day status + action checklist
-  cli.py               # fetch-data | train | backtest | signal | advisory
+  briefing.py          # pre-market multi-LLM briefing orchestration
+  cli.py               # fetch-data | train | backtest | signal | advisory | briefing
 ```
 
 ## Tests
