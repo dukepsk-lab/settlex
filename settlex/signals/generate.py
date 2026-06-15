@@ -23,6 +23,16 @@ def generate_signal(
 ) -> Dict:
     """Produce today's signal as a dict (see :func:`signals.telegram.format_signal`)."""
     settings = settings or get_settings()
+
+    # Auto-fetch account equity from Settrade when no override is given.
+    if capital is None and not synthetic and settings.settrade.is_complete and settings.settrade.account_no:
+        try:
+            from ..data.settrade_client import SettradeClient
+            fetched = SettradeClient(settings.settrade).get_account_equity()
+            if fetched and fetched > 0:
+                capital = fetched
+        except Exception:
+            pass
     capital = settings.capital if capital is None else capital
 
     symbols = load_universe()

@@ -36,8 +36,8 @@ class SettradeClient:
         self._investor = None
         self._market = None
 
-    def _market_data(self):
-        if self._market is None:
+    def _get_investor(self):
+        if self._investor is None:
             from settrade_v2 import Investor  # lazy import
 
             self._investor = Investor(
@@ -47,8 +47,34 @@ class SettradeClient:
                 app_code=self._config.app_code,
                 is_auto_queue=False,
             )
-            self._market = self._investor.MarketData()
+        return self._investor
+
+    def _market_data(self):
+        if self._market is None:
+            self._market = self._get_investor().MarketData()
         return self._market
+
+    def get_account_equity(self) -> Optional[float]:
+        """Return total account equity in THB from Settrade, or None on failure.
+
+        Requires SETTRADE_ACCOUNT_NO to be set. Tries common field names
+        returned by ``InvestorEquity.get_account_info()`` in priority order.
+        """
+        if not self._config.account_no:
+            return None
+        try:
+            eq = self._get_investor().Equity(self._config.account_no)
+            info = eq.get_account_info()
+            for field_name in (
+                "portEquity", "equity", "portValue",
+                "totalPortValue", "totalEquity", "portValueWithCredit",
+            ):
+                val = info.get(field_name)
+                if val is not None:
+                    return float(val)
+            return None
+        except Exception:
+            return None
 
     def get_ohlcv(
         self,
