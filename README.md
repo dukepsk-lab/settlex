@@ -99,19 +99,25 @@ If installed with `pip install -e .`, the `settlex` console script is available
 
 `briefing` runs an **advisory** layer on top of the quant signal — ideal as a
 ~07:00 cron job before the open. It (1) verifies yesterday's predictions against
-realised prices, (2) summarises news, and (3) writes an actionable order plan:
+realised prices, (2) diffs yesterday's holdings into a **SELL / HOLD / BUY**
+rebalance, (3) summarises news, and (4) writes an actionable order plan:
 
 | Provider | Role | Key |
 |----------|------|-----|
 | **DeepSeek** | verify yesterday's prediction accuracy | `DEEPSEEK_API_KEY` |
 | **Gemini** | summarise market/stock news (Google Search grounding) | `GEMINI_API_KEY` |
-| **Claude** | synthesise today's order checklist | `ANTHROPIC_API_KEY` |
+| **Claude** | synthesise today's order checklist (from the rebalance delta) | `ANTHROPIC_API_KEY` |
+
+The **rebalance diff** is deterministic (no LLM): it compares the previous saved
+signal against today's target and tells you exactly what to **close**, what to
+**hold/adjust**, and what to **open** — plus the turnover. (Baseline is the
+previous signal; a live broker-positions feed can replace it once available.)
 
 Install the SDKs with `pip install -e ".[llm]"`. Each provider is **independent
 and optional** — a missing key (or a failed call) simply omits that section; the
-deterministic target-allocation table always shows. **LLMs never change the
-Top-N or weights** — the ML model remains the sole decision-maker. Disable all
-LLM sections with `SETTLEX_LLM_ENABLED=0`.
+deterministic target-allocation table and rebalance always show. **LLMs never
+change the Top-N or weights** — the ML model remains the sole decision-maker.
+Disable all LLM sections with `SETTLEX_LLM_ENABLED=0`.
 
 Example VPS cron (07:00 Asia/Bangkok, weekdays):
 
@@ -133,6 +139,7 @@ settlex/
   signals/             # live signal orchestration + Telegram delivery
   llm/                 # optional Claude / Gemini / DeepSeek providers (briefing)
   evaluation.py        # prediction-accuracy scoring (picks vs realised prices)
+  rebalance.py         # SELL/HOLD/BUY turnover diff between consecutive signals
   advisory.py          # daily trading-day status + action checklist
   briefing.py          # pre-market multi-LLM briefing orchestration
   cli.py               # fetch-data | train | backtest | signal | advisory | briefing

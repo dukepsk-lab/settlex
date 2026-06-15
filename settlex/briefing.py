@@ -3,10 +3,11 @@
 Pipeline (run pre-market, e.g. 07:00 via cron on a VPS):
   1. Load today's signal (ML Top-N + Markowitz weights) — the decision.
   2. Evaluate yesterday's signal vs realised prices (pure, no LLM).
-  3. DeepSeek  -> verify yesterday's prediction accuracy.
-  4. Gemini    -> summarise market/stock news (Google Search grounding).
-  5. Claude    -> synthesise an actionable order checklist for today.
-  6. Assemble + deliver via Telegram.
+  3. Diff yesterday's -> today's target into SELL/HOLD/BUY actions (pure, no LLM).
+  4. DeepSeek  -> verify yesterday's prediction accuracy.
+  5. Gemini    -> summarise market/stock news (Google Search grounding).
+  6. Claude    -> synthesise an actionable order checklist from the rebalance delta.
+  7. Assemble + deliver via Telegram.
 
 LLMs are advisory only: they never change the Top-N or the weights. Every LLM
 section is optional — a missing key or a failed call simply omits that section,
@@ -20,6 +21,7 @@ from .advisory import _thai_date_str, load_last_signal, load_previous_signal
 from .config import Settings, get_settings
 from .data.loader import load_universe_ohlcv
 from .evaluation import evaluate_predictions
+from .rebalance import compute_rebalance, has_changes, rebalance_summary_text
 from .universe import load_universe
 
 NEWS_SYSTEM = (
@@ -38,10 +40,13 @@ VERIFY_SYSTEM = (
 ORDERS_SYSTEM = (
     "You are a trading-operations assistant. The quantitative model has ALREADY "
     "decided today's target Top-N portfolio and weights — you must NOT change, "
-    "reorder, add, or drop any of them. Restate the target allocation as a clear, "
-    "actionable order checklist for the user to execute manually before the market "
-    "opens, in Thai. Use the news and verification context only as short risk notes. "
-    "End with: this is decision-support only, not financial advice, not auto-executed."
+    "reorder, add, or drop any of them. You are given the explicit rebalance delta "
+    "versus yesterday's holdings (what to SELL, HOLD/ADJUST, BUY). Turn it into a "
+    "clear, actionable order checklist the user executes manually before the open, "
+    "in Thai: state each sell, each new buy with its THB size, and each hold "
+    "(noting any add/trim amount). Use the news and verification only as short risk "
+    "notes. End with: this is decision-support only, not financial advice, not "
+    "auto-executed."
 )
 
 
@@ -74,6 +79,30 @@ def _fmt_rate(x: Optional[float]) -> str:
     return f"{x*100:.0f}%" if isinstance(x, (int, float)) else "—"
 
 
+def _format_rebalance_lines(reb: Optional[Dict]) -> List[str]:
+    """Deterministic SELL / HOLD / BUY action list (shown even without any LLM)."""
+    if not reb or not reb.get("has_prev"):
+        return []
+    if not has_changes(reb):
+        return ["*🔄 ปรับพอร์ต:* ถือพอร์ตเดิมทั้งหมด — ไม่ต้องส่งคำสั่งวันนี้"]
+    out = [f"*🔄 ปรับพอร์ต (เทียบ {reb.get('prev_date')}):*"]
+    for r in reb["sell"]:
+        out.append(f"  🔴 ขายปิด {r['symbol']} (เคย {r['prev_weight']*100:.1f}%)")
+    for r in reb["hold"]:
+        if abs(r["weight_delta"]) <= 1e-9:
+            out.append(f"  ⚪ ถือ {r['symbol']} {r['weight']*100:.1f}% (คงเดิม)")
+        else:
+            arrow = "🔺" if r["thb_delta"] > 0 else "🔻"
+            out.append(
+                f"  {arrow} {r['symbol']} {r['prev_weight']*100:.1f}%→{r['weight']*100:.1f}% "
+                f"({r['thb_delta']:+,.0f}฿)"
+            )
+    for r in reb["buy"]:
+        out.append(f"  🟢 ซื้อใหม่ {r['symbol']} {r['weight']*100:.1f}% (฿{r['thb']:,.0f})")
+    out.append(f"  _turnover ~{reb['turnover']*100:.0f}%_")
+    return out
+
+
 def _news_prompt(signal: Dict) -> str:
     syms = ", ".join(p["symbol"] for p in signal.get("positions", []))
     return (
@@ -102,7 +131,12 @@ def _verify_prompt(ev: Dict) -> str:
     return "\n".join(lines)
 
 
-def _orders_prompt(signal: Dict, news: Optional[str], verification: Optional[str]) -> str:
+def _orders_prompt(
+    signal: Dict,
+    news: Optional[str],
+    verification: Optional[str],
+    rebalance: Optional[Dict] = None,
+) -> str:
     parts = [
         f"พอร์ตเป้าหมายวันนี้ ({signal.get('date')}), "
         f"เงินทุน ฿{signal.get('capital', 0):,.0f}:",
@@ -112,13 +146,21 @@ def _orders_prompt(signal: Dict, news: Optional[str], verification: Optional[str
             f"  {i}. {p['symbol']} — น้ำหนัก {p['weight']*100:.1f}% "
             f"(฿{p['thb']:,.0f}), คาดการณ์ {_fmt_pct(p['pred_return'])}"
         )
+    if rebalance and rebalance.get("has_prev"):
+        parts.append(
+            f"\nสิ่งที่ต้องปรับจากพอร์ตเมื่อวาน ({rebalance.get('prev_date')}):\n"
+            f"{rebalance_summary_text(rebalance)}"
+        )
+    elif rebalance is not None and not rebalance.get("has_prev"):
+        parts.append("\nวันแรก — เปิดสถานะตามตารางเป้าหมายทั้งหมด.")
     if verification:
         parts.append(f"\nผลทบทวนเมื่อวาน:\n{verification}")
     if news:
         parts.append(f"\nข่าววันนี้:\n{news}")
     parts.append(
         "\nเขียน checklist คำสั่งซื้อขายสำหรับวันนี้ให้ชัดเจน ปฏิบัติได้จริง "
-        "(ห้ามเปลี่ยนรายชื่อหุ้นหรือน้ำหนัก) พร้อมหมายเหตุความเสี่ยงสั้น ๆ."
+        "(ขายตัวไหน / ถือตัวไหน / ซื้อใหม่ตัวไหนพร้อมจำนวนเงิน) "
+        "ห้ามเปลี่ยนรายชื่อหุ้นหรือน้ำหนัก พร้อมหมายเหตุความเสี่ยงสั้น ๆ."
     )
     return "\n".join(parts)
 
@@ -133,8 +175,10 @@ def generate_briefing(
     signal = load_last_signal(settings.data_dir)
 
     evaluation = None
+    rebalance = None
     if signal:
         prev = load_previous_signal(settings.data_dir, before=signal["date"])
+        rebalance = compute_rebalance(prev, signal)
         if prev:
             symbols = load_universe()
             ohlcv = load_universe_ohlcv(symbols, settings, synthetic=synthetic)
@@ -154,7 +198,9 @@ def generate_briefing(
         if "claude" in pmap:
             sections["orders"] = _safe(
                 lambda: pmap["claude"].complete(
-                    _orders_prompt(signal, sections.get("news"), sections.get("verification")),
+                    _orders_prompt(
+                        signal, sections.get("news"), sections.get("verification"), rebalance
+                    ),
                     ORDERS_SYSTEM,
                 )
             )
@@ -163,6 +209,7 @@ def generate_briefing(
         "date": signal["date"] if signal else None,
         "signal": signal,
         "evaluation": evaluation,
+        "rebalance": rebalance,
         "sections": sections,
         "providers_used": sorted(k for k, v in sections.items() if v),
     }
@@ -205,8 +252,11 @@ def format_briefing(briefing: Dict) -> str:
         for i, p in enumerate(signal["positions"], 1):
             lines.append(f"{i:<2}{p['symbol']:<8}{p['weight']*100:>6.1f}%{p['thb']:>12,.0f}")
         lines.append("```")
+        reb_lines = _format_rebalance_lines(briefing.get("rebalance"))
+        if reb_lines:
+            lines += ["", *reb_lines]
         if sections.get("orders"):
-            lines += [f"_Claude:_ {sections['orders']}"]
+            lines += ["", f"_Claude:_ {sections['orders']}"]
     elif signal:
         lines.append("*ไม่มีสัญญาณซื้อวันนี้ → ถือเงินสด*")
     else:
