@@ -84,6 +84,9 @@ class Settings:
     settrade: SettradeConfig = field(default_factory=SettradeConfig.from_env)
     telegram: TelegramConfig = field(default_factory=TelegramConfig.from_env)
 
+    # Market-data backend: "yahoo" (free, no creds, EOD) or "settrade".
+    data_source: str = field(default_factory=lambda: _get("SETTLEX_DATA_SOURCE", "yahoo").lower())
+
     # Strategy parameters
     horizon: int = field(default_factory=lambda: int(_get("SETTLEX_HORIZON", "5")))
     lookback: int = field(default_factory=lambda: int(_get("SETTLEX_LOOKBACK", "60")))

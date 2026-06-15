@@ -8,6 +8,7 @@ PyPortfolioOpt>=1.5
 python-dotenv>=1.0
 pyarrow>=12.0
 requests>=2.28
+yfinance>=0.2.40
 settrade-v2>=2.2.1
 
 # Optional: enables ADF-based fractional-differencing order search (features/fracdiff.py)

@@ -23,6 +23,21 @@ def _cache_path(settings: Settings, symbol: str) -> Path:
     return settings.data_dir / "ohlcv" / f"{symbol}.parquet"
 
 
+def make_data_client(settings: Settings):
+    """Return a data client (exposing ``get_ohlcv``) for the configured source.
+
+    ``SETTLEX_DATA_SOURCE`` selects the backend: ``yahoo`` (default, free, no
+    credentials — EOD daily data, ideal for after-close planning) or
+    ``settrade`` (the broker Open API).
+    """
+    source = (settings.data_source or "yahoo").lower()
+    if source == "settrade":
+        return SettradeClient(settings.settrade)
+    from .yahoo_client import YahooClient
+
+    return YahooClient()
+
+
 def _stable_seed(symbol: str) -> int:
     digest = hashlib.sha256(symbol.encode("utf-8")).hexdigest()
     return int(digest[:8], 16)
@@ -76,7 +91,7 @@ def load_symbol(
     if synthetic:
         df = synthetic_ohlcv(symbol, settings.history_start)
     else:
-        client = client or SettradeClient(settings.settrade)
+        client = client or make_data_client(settings)
         df = client.get_ohlcv(symbol, start=settings.history_start)
 
     df.to_parquet(path, index=False)
@@ -97,7 +112,7 @@ def load_universe_ohlcv(
     if not synthetic:
         need_fetch = refresh or any(not _cache_path(settings, s).exists() for s in symbols)
         if need_fetch:
-            client = SettradeClient(settings.settrade)
+            client = make_data_client(settings)
 
     out: Dict[str, pd.DataFrame] = {}
     for symbol in symbols:

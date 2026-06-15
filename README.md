@@ -13,7 +13,7 @@ Learning Trading Systems for the SET50 Index"* and delivers its output as a
 
 | Stage | Choice (from the report) |
 |-------|--------------------------|
-| Data | Settrade Open API (`settrade-v2`) daily OHLCV |
+| Data | Yahoo Finance EOD daily OHLCV (default, no creds) or Settrade Open API |
 | Features | Technical indicators (RSI, MACD, ADX, ATR, Bollinger, OBV, VWAP) + **fractionally-differenced** log-price + relative strength |
 | Model | **CNN-BiLSTM + XGBoost ensemble** (averaged) |
 | Target | **3–5 day forward return** (regression) |
@@ -47,20 +47,27 @@ cp .env.example .env
 # then edit .env
 ```
 
-- **Settrade Open API** — request `APP_ID` / `APP_SECRET` from your Thai broker
-  (e.g. Pi Securities) Settrade Open API console. Use `SETTRADE_BROKER_ID=SANDBOX`
-  for development. Docs: <https://developer.settrade.com/open-api/>
+- **Market data** — `SETTLEX_DATA_SOURCE=yahoo` (default) pulls free EOD daily
+  bars from Yahoo Finance (Thai tickers via the `.BK` suffix), so you can run
+  the whole pipeline with **no broker credentials**. Since signals are generated
+  after the close to plan the next session, EOD data is all you need. Set
+  `SETTLEX_DATA_SOURCE=settrade` to use the broker feed instead.
+- **Settrade Open API** (optional) — request `APP_ID` / `APP_SECRET` from your
+  Thai broker (e.g. Pi Securities) Settrade Open API console. Use
+  `SETTRADE_APP_CODE=ALGO_EQ` for equities. Setting `SETTRADE_ACCOUNT_NO` lets
+  `signal` auto-fetch your real portfolio equity as the capital base. Docs:
+  <https://developer.settrade.com/open-api/>
 - **Telegram** — create a bot with [@BotFather](https://t.me/BotFather) for the
   token, message your bot, then read your chat id from
   `https://api.telegram.org/bot<TOKEN>/getUpdates`.
 
-No credentials yet? Every command accepts `--synthetic` to run the full
+No credentials at all? Every command also accepts `--synthetic` to run the full
 pipeline on deterministic generated data.
 
 ## Usage
 
 ```bash
-# 1. Cache OHLCV (real creds) ... or synthetic for a dry run
+# 1. Cache OHLCV (Yahoo, no creds by default) ... or synthetic for a dry run
 python -m settlex.cli fetch-data
 python -m settlex.cli fetch-data --synthetic
 
@@ -75,6 +82,10 @@ python -m settlex.cli backtest --synthetic --quick --model xgboost
 # 4. Generate today's signal -> Telegram (--dry-run prints without sending)
 python -m settlex.cli signal --dry-run
 python -m settlex.cli signal
+
+# 5. Daily advisory: is today a trading day, when to run, last signal recap
+python -m settlex.cli advisory --dry-run
+python -m settlex.cli advisory
 ```
 
 If installed with `pip install -e .`, the `settlex` console script is available
@@ -86,13 +97,14 @@ If installed with `pip install -e .`, the `settlex` console script is available
 settlex/
   config.py            # env-driven settings & secrets
   universe.py          # SET50 constituents (override via SETTLEX_UNIVERSE_FILE)
-  data/                # Settrade client + caching loader + synthetic fallback
+  data/                # Yahoo + Settrade clients, caching loader, synthetic fallback
   features/            # technical indicators, fractional differencing, dataset pipeline
   models/              # XGBoost, CNN-BiLSTM, and the averaging ensemble
   portfolio/           # Top-N selection + Markowitz mean-variance optimiser
   backtest/            # walk-forward engine + financial metrics
   signals/             # live signal orchestration + Telegram delivery
-  cli.py               # fetch-data | train | backtest | signal
+  advisory.py          # daily trading-day status + action checklist
+  cli.py               # fetch-data | train | backtest | signal | advisory
 ```
 
 ## Tests
@@ -105,8 +117,9 @@ python -m pytest          # fast unit tests (no model training / no network)
 
 - **Survivorship bias** — backtests use the current SET50 list by default. For
   rigorous results supply point-in-time constituents via `SETTLEX_UNIVERSE_FILE`.
-- **Corporate actions** — verify whether Settrade candlesticks are adjusted; add
-  an adjustment step if your feed returns raw prices.
+- **Corporate actions** — the Yahoo source uses `auto_adjust=True` (split/dividend
+  adjusted). If you switch to Settrade, verify whether its candlesticks are
+  adjusted and add an adjustment step if it returns raw prices.
 - **Alternative data** — NVDR / foreign-flow features (the report's top alpha
   source) are **not** included in this version; they can be layered onto the
   feature pipeline later.
