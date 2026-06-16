@@ -20,7 +20,9 @@ from .settrade_client import SettradeClient, OHLCV_COLUMNS
 
 
 def _cache_path(settings: Settings, symbol: str) -> Path:
-    return settings.data_dir / "ohlcv" / f"{symbol}.parquet"
+    # Append an underscore to avoid Windows reserved filename issues (e.g. COM7.parquet -> COM7_.parquet)
+    # Windows treats COM1-9 as reserved device names even with an extension.
+    return settings.data_dir / "ohlcv" / f"{symbol}_.parquet"
 
 
 def make_data_client(settings: Settings):
