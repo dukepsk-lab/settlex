@@ -55,8 +55,14 @@ def _send_order(side: str, symbol: str, quantity: int, config: InnovestXConfig, 
         "api_secret": config.api_secret
     }
     
+    headers = {
+        "User-Agent": "TradingView",
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
+    
     try:
-        resp = requests.post(config.endpoint, json=payload, timeout=10)
+        resp = requests.post(config.endpoint, json=payload, headers=headers, timeout=10)
         resp.raise_for_status()
         logging.info(f"InnovestX {side} {quantity} {symbol}: {resp.status_code}")
         return {"symbol": symbol, "side": side, "status": resp.status_code, "text": resp.text}
