@@ -310,15 +310,15 @@ def cmd_run(args: argparse.Namespace) -> None:
     except Exception as e:
         print(f"\n[run] Failed to fetch LLM news: {e}")
 
-    # 7. Execute InnovestX webhook
+    # 7. Execute via Settrade Open API
     execution_responses = None
     if getattr(args, "execute", False):
         if args.dry_run:
-            print("\n[dry-run] Not executing InnovestX orders.")
+            print("\n[dry-run] Not executing Settrade orders.")
         else:
-            print("\n[execute] Sending orders to InnovestX...")
-            from .execution.innovestx import execute_orders
-            execution_responses = execute_orders(reb, settings.innovestx, result["date"])
+            print("\n[execute] Sending orders to Settrade Open API...")
+            from .execution.settrade_exec import execute_orders
+            execution_responses = execute_orders(reb, settings.settrade, result["date"])
             print(f"\n[executed] Processed {len(execution_responses)} order requests.")
 
     # 8. Format and Send message
