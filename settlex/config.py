@@ -105,12 +105,32 @@ class LLMConfig:
 
 
 @dataclass
+class InnovestXConfig:
+    """Credentials for InnovestX Webhook execution."""
+
+    endpoint: Optional[str] = None
+    api_secret: Optional[str] = None
+
+    @classmethod
+    def from_env(cls) -> "InnovestXConfig":
+        return cls(
+            endpoint=_get("INNOVESTX_ENDPOINT"),
+            api_secret=_get("INNOVESTX_API_SECRET"),
+        )
+
+    @property
+    def is_complete(self) -> bool:
+        return bool(self.endpoint and self.api_secret)
+
+
+@dataclass
 class Settings:
     """Top-level settlex settings."""
 
     settrade: SettradeConfig = field(default_factory=SettradeConfig.from_env)
     telegram: TelegramConfig = field(default_factory=TelegramConfig.from_env)
     llm: LLMConfig = field(default_factory=LLMConfig.from_env)
+    innovestx: InnovestXConfig = field(default_factory=InnovestXConfig.from_env)
 
     # Market-data backend: "yahoo" (free, no creds, EOD) or "settrade".
     data_source: str = field(default_factory=lambda: _get("SETTLEX_DATA_SOURCE", "yahoo").lower())

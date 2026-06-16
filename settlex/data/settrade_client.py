@@ -76,6 +76,36 @@ class SettradeClient:
         except Exception:
             return None
 
+    def get_live_portfolio(self) -> Optional[dict]:
+        """Fetch live positions and cash balance from Settrade."""
+        if not self._config.account_no:
+            return None
+        try:
+            eq = self._get_investor().Equity(self._config.account_no)
+            info = eq.get_account_info()
+            
+            cash = 0.0
+            for field in ["lineAvailable", "cashBalance", "purchasingPower"]:
+                val = info.get(field)
+                if val is not None:
+                    cash = float(val)
+                    break
+            
+            positions = {}
+            port = eq.get_portfolio()
+            for p in (port.get("portfolioList", []) or port.get("portfolio_list", [])):
+                sym = p.get("symbol")
+                vol = p.get("actualVolume") or p.get("actual_volume") or p.get("volume") or 0
+                val = p.get("marketValue") or p.get("market_value") or p.get("amountValue") or 0.0
+                if sym and float(vol) > 0:
+                    positions[sym] = {"shares": int(vol), "market_value": float(val)}
+                    
+            return {"cash": cash, "positions": positions}
+        except Exception as e:
+            import logging
+            logging.warning(f"Failed to fetch live portfolio: {e}")
+            return None
+
     def get_ohlcv(
         self,
         symbol: str,

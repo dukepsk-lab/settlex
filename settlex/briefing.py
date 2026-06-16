@@ -178,7 +178,18 @@ def generate_briefing(
     rebalance = None
     if signal:
         prev = load_previous_signal(settings.data_dir, before=signal["date"])
-        rebalance = compute_rebalance(prev, signal)
+        live_portfolio = None
+        if not synthetic:
+            from .data.portfolio import load_manual_portfolio
+            live_portfolio = load_manual_portfolio(settings.data_dir)
+            
+            if live_portfolio is None and settings.settrade.is_complete and settings.settrade.account_no:
+                try:
+                    from .data.settrade_client import SettradeClient
+                    live_portfolio = SettradeClient(settings.settrade).get_live_portfolio()
+                except Exception:
+                    pass
+        rebalance = compute_rebalance(prev, signal, live_portfolio=live_portfolio)
         if prev:
             symbols = load_universe()
             ohlcv = load_universe_ohlcv(symbols, settings, synthetic=synthetic)
@@ -248,9 +259,10 @@ def format_briefing(briefing: Dict) -> str:
     if signal and signal.get("positions"):
         lines.append("*📊 แผนวันนี้ — พอร์ตเป้าหมาย (ML model):*")
         lines.append("```")
-        lines.append(f"{'#':<2}{'SYM':<8}{'WT':>7}{'THB':>12}")
+        lines.append(f"{'#':<2}{'SYM':<6}{'WT':>6}{'SHARES':>8}{'THB':>10}")
         for i, p in enumerate(signal["positions"], 1):
-            lines.append(f"{i:<2}{p['symbol']:<8}{p['weight']*100:>6.1f}%{p['thb']:>12,.0f}")
+            s_text = str(p.get("shares", "-"))
+            lines.append(f"{i:<2}{p['symbol']:<6}{p['weight']*100:>5.1f}%{s_text:>8}{p['thb']:>10,.0f}")
         lines.append("```")
         reb_lines = _format_rebalance_lines(briefing.get("rebalance"))
         if reb_lines:

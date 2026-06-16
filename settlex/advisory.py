@@ -195,9 +195,11 @@ def format_advisory(advisory: Dict) -> str:
             sym = p["symbol"]
             wt = p["weight"] * 100
             thb = p["thb"]
+            shares = p.get("shares")
+            s_text = f" ({shares} หุ้น)" if shares is not None else ""
             pred = p["pred_return"] * 100
             lines.append(
-                f"  {i}. {sym:<8} {wt:5.1f}%   ฿{thb:>10,.0f}   ({pred:+.1f}%)"
+                f"  {i}. {sym:<8} {wt:5.1f}%   ฿{thb:>10,.0f}{s_text}   ({pred:+.1f}%)"
             )
         lines.append(f"  เงินลงทุนรวม: ฿{capital:,.0f}")
     else:

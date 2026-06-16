@@ -24,15 +24,29 @@ def generate_signal(
     """Produce today's signal as a dict (see :func:`signals.telegram.format_signal`)."""
     settings = settings or get_settings()
 
-    # Auto-fetch account equity from Settrade when no override is given.
-    if capital is None and not synthetic and settings.settrade.is_complete and settings.settrade.account_no:
-        try:
-            from ..data.settrade_client import SettradeClient
-            fetched = SettradeClient(settings.settrade).get_account_equity()
-            if fetched and fetched > 0:
+    if capital is None and not synthetic:
+        from ..data.portfolio import load_manual_portfolio
+        live_port = load_manual_portfolio(settings.data_dir)
+        
+        if live_port is not None:
+            fetched = live_port["cash"] + sum(p["market_value"] for p in live_port["positions"].values())
+            if fetched > 0:
                 capital = fetched
-        except Exception:
-            pass
+        elif settings.settrade.is_complete and settings.settrade.account_no:
+            try:
+                from ..data.settrade_client import SettradeClient
+                client = SettradeClient(settings.settrade)
+                live_port = client.get_live_portfolio()
+                if live_port is not None:
+                    fetched = live_port["cash"] + sum(p["market_value"] for p in live_port["positions"].values())
+                    if fetched > 0:
+                        capital = fetched
+                else:
+                    fetched = client.get_account_equity()
+                    if fetched and fetched > 0:
+                        capital = fetched
+            except Exception:
+                pass
     capital = settings.capital if capital is None else capital
 
     symbols = load_universe()
@@ -95,11 +109,27 @@ def generate_signal(
         w = float(weights[symbol])
         if w <= 0:
             continue
+            
+        target_thb = float(thb.get(symbol, 0.0))
+        price = None
+        shares = None
+        actual_thb = target_thb
+        
+        df = ohlcv.get(symbol)
+        if df is not None and not df.empty:
+            price = float(df.iloc[-1]["close"])
+            if price > 0:
+                import math
+                shares = math.floor(target_thb / price)
+                actual_thb = shares * price
+
         positions.append(
             {
                 "symbol": symbol,
                 "weight": w,
-                "thb": float(thb.get(symbol, 0.0)),
+                "thb": actual_thb,
+                "price": price,
+                "shares": shares,
                 "pred_return": float(pred_map.get(symbol, np.nan)),
             }
         )

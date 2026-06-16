@@ -91,7 +91,27 @@ def cmd_signal(args: argparse.Namespace) -> None:
 
     settings = get_settings()
     result = generate_signal(settings, synthetic=args.synthetic, capital=args.capital)
-    message = format_signal(result)
+    
+    # Calculate live_portfolio and rebalance to pass to format_signal
+    from .advisory import load_previous_signal
+    from .rebalance import compute_rebalance
+    
+    live_portfolio = None
+    if not args.synthetic:
+        from .data.portfolio import load_manual_portfolio
+        live_portfolio = load_manual_portfolio(settings.data_dir)
+        
+        if live_portfolio is None and settings.settrade.is_complete and settings.settrade.account_no:
+            try:
+                from .data.settrade_client import SettradeClient
+                live_portfolio = SettradeClient(settings.settrade).get_live_portfolio()
+            except Exception:
+                pass
+
+    prev = load_previous_signal(settings.data_dir, before=result["date"])
+    reb = compute_rebalance(prev, result, live_portfolio=live_portfolio)
+
+    message = format_signal(result, live_portfolio=live_portfolio, rebalance=reb)
     print(message)
 
     # Persist so `advisory`/`briefing` can recap and verify it next morning.
@@ -102,13 +122,29 @@ def cmd_signal(args: argparse.Namespace) -> None:
 
     if args.dry_run:
         print("\n[dry-run] Not sending to Telegram.")
-        return
-    if not settings.telegram.is_complete:
-        print("\n[error] Telegram not configured. Set TELEGRAM_BOT_TOKEN and "
-              "TELEGRAM_CHAT_ID, or use --dry-run.")
-        sys.exit(2)
-    send_message(message, settings.telegram)
-    print("\n[sent] Signal delivered to Telegram.")
+    else:
+        if not settings.telegram.is_complete:
+            print("\n[error] Telegram not configured. Set TELEGRAM_BOT_TOKEN and "
+                  "TELEGRAM_CHAT_ID, or use --dry-run.")
+            sys.exit(2)
+        send_message(message, settings.telegram)
+        print("\n[sent] Signal delivered to Telegram.")
+
+    if getattr(args, "execute", False):
+        if args.dry_run:
+            print("\n[dry-run] Not executing InnovestX orders.")
+        else:
+            print("\n[execute] Calculating order diff and sending to InnovestX...")
+            from .execution.innovestx import execute_orders
+            responses = execute_orders(reb, settings.innovestx, result["date"])
+            
+            print(f"\n[executed] Processed {len(responses)} order requests.")
+            for resp in responses:
+                err = resp.get("error")
+                if err:
+                    print(f"  ❌ {resp['side']} {resp['symbol']} - Error: {err}")
+                else:
+                    print(f"  ✅ {resp['side']} {resp['symbol']} - Status: {resp['status']}")
 
 
 def cmd_advisory(args: argparse.Namespace) -> None:
@@ -185,7 +221,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("signal", help="generate today's signal and send to Telegram")
     p.add_argument("--synthetic", action="store_true")
     p.add_argument("--capital", type=float, default=None, help="override capital in THB")
-    p.add_argument("--dry-run", action="store_true", help="print only; do not send to Telegram")
+    p.add_argument("--dry-run", action="store_true", help="print only; do not send to Telegram or execute orders")
+    p.add_argument("--execute", action="store_true", help="automatically execute order diff via InnovestX webhook")
     p.set_defaults(func=cmd_signal)
 
     p = sub.add_parser("advisory", help="show today's trading-day status and action checklist")
@@ -197,7 +234,122 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dry-run", action="store_true", help="print only; do not send to Telegram")
     p.set_defaults(func=cmd_briefing)
 
+    p = sub.add_parser("run", help="unified daily run (signal + advisory + briefing + execute)")
+    p.add_argument("--synthetic", action="store_true")
+    p.add_argument("--capital", type=float, default=None, help="override capital in THB")
+    p.add_argument("--dry-run", action="store_true", help="print only; do not send to Telegram or execute orders")
+    p.add_argument("--execute", action="store_true", help="automatically execute order diff via InnovestX webhook")
+    p.set_defaults(func=cmd_run)
+
     return parser
+
+
+def cmd_run(args: argparse.Namespace) -> None:
+    from .advisory import generate_advisory, load_previous_signal, save_last_signal, append_signal_history
+    from .signals.generate import generate_signal
+    from .signals.telegram import format_run_message, send_message
+    from .rebalance import compute_rebalance
+    from .data.portfolio import load_manual_portfolio
+    from .evaluation import evaluate_predictions
+    from .universe import load_universe
+    from .data.loader import load_universe_ohlcv
+    from .briefing import build_providers
+
+    settings = get_settings()
+    
+    # 1. Check Advisory
+    advisory = generate_advisory(settings)
+    if not advisory.get("is_trading_day", True):
+        msg = f"📉 *SETTLEX Report* ({advisory.get('date', '?')})\n\nวันนี้ตลาดปิดครับ พักผ่อนได้เลย 🏖️"
+        print(msg)
+        if not args.dry_run and settings.telegram.is_complete:
+            send_message(msg, settings.telegram)
+        return
+
+    # 2. Generate today's target signal
+    print("\n[run] Generating today's signal...")
+    result = generate_signal(settings, synthetic=args.synthetic, capital=args.capital)
+
+    # 3. Load Portfolio
+    live_portfolio = None
+    if not args.synthetic:
+        live_portfolio = load_manual_portfolio(settings.data_dir)
+        if live_portfolio is None and settings.settrade.is_complete and settings.settrade.account_no:
+            try:
+                from .data.settrade_client import SettradeClient
+                live_portfolio = SettradeClient(settings.settrade).get_live_portfolio()
+            except Exception:
+                pass
+
+    # 4. Compute rebalance
+    prev = load_previous_signal(settings.data_dir, before=result["date"])
+    reb = compute_rebalance(prev, result, live_portfolio=live_portfolio)
+
+    # 5. Evaluate yesterday's prediction
+    evaluation = None
+    if prev:
+        try:
+            symbols = load_universe()
+            ohlcv = load_universe_ohlcv(symbols, settings, synthetic=args.synthetic)
+            evaluation = evaluate_predictions(prev, ohlcv)
+        except Exception as e:
+            print(f"\n[run] Failed to evaluate yesterday's signal: {e}")
+
+    # 6. LLM News
+    news_text = None
+    try:
+        providers = build_providers(settings)
+        pmap = {p.name: p for p in providers if p.is_available()}
+        
+        if "gemini" in pmap:
+            prompt = (
+                f"Give a short 1-paragraph summary of today's SET50/Thai stock market sentiment "
+                f"or key news on {result['date']}. Keep it concise, engaging, and in Thai."
+            )
+            news_text = pmap["gemini"].complete(prompt, "You are an expert Thai stock market analyst.")
+    except Exception as e:
+        print(f"\n[run] Failed to fetch LLM news: {e}")
+
+    # 7. Execute InnovestX webhook
+    execution_responses = None
+    if getattr(args, "execute", False):
+        if args.dry_run:
+            print("\n[dry-run] Not executing InnovestX orders.")
+        else:
+            print("\n[execute] Sending orders to InnovestX...")
+            from .execution.innovestx import execute_orders
+            execution_responses = execute_orders(reb, settings.innovestx, result["date"])
+            print(f"\n[executed] Processed {len(execution_responses)} order requests.")
+
+    # 8. Format and Send message
+    message = format_run_message(
+        result=result,
+        live_portfolio=live_portfolio,
+        rebalance=reb,
+        evaluation=evaluation,
+        news=news_text,
+        execution_responses=execution_responses
+    )
+    try:
+        print("\n" + message)
+    except UnicodeEncodeError:
+        print("\n" + message.encode(sys.stdout.encoding, errors='replace').decode(sys.stdout.encoding))
+
+    # Persist signal
+    if not args.synthetic:
+        settings.ensure_dirs()
+        save_last_signal(result, settings.data_dir)
+        append_signal_history(result, settings.data_dir)
+
+    # Send
+    if args.dry_run:
+        print("\n[dry-run] Not sending to Telegram.")
+    else:
+        if not settings.telegram.is_complete:
+            print("\n[error] Telegram not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID, or use --dry-run.")
+            sys.exit(2)
+        send_message(message, settings.telegram)
+        print("\n[sent] Daily Run Report delivered to Telegram.")
 
 
 def main(argv=None) -> None:
