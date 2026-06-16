@@ -14,6 +14,11 @@ from __future__ import annotations
 
 import argparse
 import sys
+import os
+
+# Suppress noisy TensorFlow C++ warnings and info messages
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
 from .config import get_settings
 
