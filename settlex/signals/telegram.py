@@ -143,33 +143,45 @@ def format_run_message(
         lines.append(f"มูลค่ารวม: ฿{capital:,.0f}")
         lines.append("")
 
+    # Target Signal Table
+    positions = result.get("positions", [])
+    if positions:
+        lines.append("📊 *พอร์ตเป้าหมาย:*")
+        lines.append("```")
+        lines.append(f"{'#':<2}{'SYM':<6}{'WT':>6}{'SHARES':>8}{'THB':>10}")
+        for i, p in enumerate(positions, 1):
+            s_text = str(p.get("shares", "-"))
+            lines.append(f"{i:<2}{p['symbol']:<6}{p['weight']*100:>5.1f}%{s_text:>8}{p['thb']:>10,.0f}")
+        lines.append("```")
+        lines.append("")
+
     lines.append("📝 *แผนการเทรดวันนี้ (Action):*")
     if rebalance:
-        # Simplify rebalance summary
+        lines.append("```")
+        lines.append(f"{'ACTION':<7}{'SYM':<6}{'SHARES':>8}{'THB':>10}")
         has_action = False
         for r in rebalance.get("sell", []):
-            s_text = f" {r['prev_shares']} หุ้น" if r.get("prev_shares") is not None else ""
-            lines.append(f"❌ ขายออก {r['symbol']}{s_text} (ได้เงินคืน ~฿{r['prev_thb']:,.0f})")
+            s_text = str(r.get("prev_shares", "-"))
+            lines.append(f"{'SELL':<7}{r['symbol']:<6}{s_text:>8}{r['prev_thb']:>10,.0f}")
             has_action = True
         for r in rebalance.get("hold", []):
             sd = r.get("shares_delta")
             if sd is not None and sd != 0:
-                if sd > 0:
-                    lines.append(f"✅ ซื้อเพิ่ม {r['symbol']} {sd} หุ้น (ใช้เงิน ~฿{r['thb_delta']:,.0f})")
-                else:
-                    lines.append(f"❌ ขายออก {r['symbol']} {abs(sd)} หุ้น (ได้เงินคืน ~฿{abs(r['thb_delta']):,.0f})")
+                side = "BUY" if sd > 0 else "SELL"
+                lines.append(f"{side:<7}{r['symbol']:<6}{abs(sd):>8}{abs(r['thb_delta']):>10,.0f}")
                 has_action = True
             elif sd is None and abs(r["weight_delta"]) > 1e-9:
-                verb = "✅ ซื้อเพิ่ม" if r["thb_delta"] > 0 else "❌ ขายออก"
-                lines.append(f"{verb} {r['symbol']} (ส่วนต่าง ~฿{abs(r['thb_delta']):,.0f})")
+                side = "BUY" if r["thb_delta"] > 0 else "SELL"
+                lines.append(f"{side:<7}{r['symbol']:<6}{'-':>8}{abs(r['thb_delta']):>10,.0f}")
                 has_action = True
         for r in rebalance.get("buy", []):
-            s_text = f" {r['shares']} หุ้น" if r.get("shares") is not None else ""
-            lines.append(f"✅ ซื้อใหม่ {r['symbol']}{s_text} (ใช้เงิน ~฿{r['thb']:,.0f})")
+            s_text = str(r.get("shares", "-"))
+            lines.append(f"{'BUY':<7}{r['symbol']:<6}{s_text:>8}{r['thb']:>10,.0f}")
             has_action = True
         
         if not has_action:
             lines.append("ถือพอร์ตเดิมทั้งหมด ไม่มีการเปลี่ยนแปลง")
+        lines.append("```")
     else:
         lines.append("ไม่มีข้อมูลเปรียบเทียบพอร์ต")
 
