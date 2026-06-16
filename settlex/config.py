@@ -13,7 +13,7 @@ from typing import Optional
 try:  # python-dotenv is optional at import time (e.g. in minimal test envs)
     from dotenv import load_dotenv
 
-    load_dotenv()
+    load_dotenv(override=True)
 except Exception:  # pragma: no cover
     pass
 
