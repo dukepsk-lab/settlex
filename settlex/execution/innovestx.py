@@ -50,7 +50,7 @@ def _send_order(side: str, symbol: str, quantity: int, config: InnovestXConfig, 
         "ticker": symbol,
         "side": side,
         "quantity": quantity,
-        "order_type": "Limit", # Limit instead of MP-MTL to support Odd Lots
+        "order_type": "MP-MTL", 
         "comment": f"Auto SETTLEX {signal_date} - {side} {quantity} {symbol}",
         "api_secret": config.api_secret
     }
