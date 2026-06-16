@@ -36,42 +36,68 @@ def execute_orders(rebalance: Dict[str, Any], config: SettradeConfig, signal_dat
             buys.append({'symbol': r['symbol'], 'qty': r['shares']})
 
     for s in sells:
-        responses.append(_send_order(equity, market, 'Sell', s['symbol'], s['qty']))
+        responses.extend(_send_order(equity, market, 'Sell', s['symbol'], s['qty']))
         
     for b in buys:
-        responses.append(_send_order(equity, market, 'Buy', b['symbol'], b['qty']))
+        responses.extend(_send_order(equity, market, 'Buy', b['symbol'], b['qty']))
 
     return responses
 
-def _send_order(equity, market, side: str, symbol: str, quantity: int) -> dict:
+def _send_order(equity, market, side: str, symbol: str, quantity: int) -> list:
     if quantity <= 0:
-        return {}
+        return []
+        
+    responses = []
+    board_lot = (quantity // 100) * 100
+    odd_lot = quantity % 100
         
     try:
         quote = market.get_quote_symbol(symbol)
         ref_price = quote.get('last') or quote.get('prior')
         
         if not ref_price:
-            return {'symbol': symbol, 'side': side, 'status': 'Failed', 'error': 'Could not get reference price'}
+            return [{'symbol': symbol, 'side': side, 'status': 'Failed', 'error': 'Could not get reference price'}]
             
         price = float(ref_price)
         
         import os
         pin = os.getenv('SETTRADE_PIN', '000000')
         
-        order = equity.place_order(
-            symbol=symbol,
-            price=price,
-            volume=quantity,
-            side=side,
-            pin=pin
-        )
-        
-        status = 'Success'
-        order_no = order.get('orderNo', 'Unknown')
-        return {'symbol': symbol, 'side': side, 'status': f'{status} (No: {order_no})'}
+        if board_lot > 0:
+            try:
+                order = equity.place_order(
+                    symbol=symbol,
+                    price=price,
+                    volume=board_lot,
+                    side=side,
+                    pin=pin
+                )
+                order_no = order.get('orderNo', 'Unknown')
+                responses.append({'symbol': symbol, 'side': side, 'qty': board_lot, 'status': f'Success (No: {order_no})'})
+            except Exception as e:
+                error_msg = str(e)
+                logging.error(f'Settrade {side} {board_lot} {symbol}: {error_msg}')
+                responses.append({'symbol': symbol, 'side': side, 'qty': board_lot, 'status': 'Failed', 'error': error_msg})
+
+        if odd_lot > 0:
+            try:
+                order = equity.place_order(
+                    symbol=symbol,
+                    price=price,
+                    volume=odd_lot,
+                    side=side,
+                    pin=pin
+                )
+                order_no = order.get('orderNo', 'Unknown')
+                responses.append({'symbol': symbol, 'side': side, 'qty': odd_lot, 'status': f'Success (No: {order_no})'})
+            except Exception as e:
+                error_msg = str(e)
+                logging.error(f'Settrade {side} {odd_lot} {symbol}: {error_msg}')
+                responses.append({'symbol': symbol, 'side': side, 'qty': odd_lot, 'status': 'Failed', 'error': error_msg})
+                
+        return responses
         
     except Exception as e:
         error_msg = str(e)
         logging.error(f'Settrade {side} {quantity} {symbol}: {error_msg}')
-        return {'symbol': symbol, 'side': side, 'status': 'Failed', 'error': error_msg}
+        return [{'symbol': symbol, 'side': side, 'qty': quantity, 'status': 'Failed', 'error': error_msg}]
