@@ -112,7 +112,8 @@ def format_run_message(
     rebalance: Optional[Dict] = None,
     evaluation: Optional[Dict] = None,
     news: Optional[str] = None,
-    execution_responses: Optional[List[Dict]] = None
+    execution_responses: Optional[List[Dict]] = None,
+    claude_summary: Optional[str] = None,
 ) -> str:
     """Format the unified clean daily run message."""
     date = result.get("date", "?")
@@ -201,6 +202,11 @@ def format_run_message(
         lines.append("```")
     else:
         lines.append("ไม่มีข้อมูลเปรียบเทียบพอร์ต")
+
+    if claude_summary:
+        lines.append("")
+        lines.append("🤖 *Claude AI Analysis:*")
+        lines.append(claude_summary)
 
     if execution_responses is not None:
         lines.append("")

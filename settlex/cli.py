@@ -313,6 +313,27 @@ def cmd_run(args: argparse.Namespace) -> None:
     except Exception as e:
         print(f"\n[run] Failed to fetch LLM news: {e}")
 
+    # 6.5 LLM Claude Summary
+    claude_summary = None
+    try:
+        if "claude" in locals().get("pmap", {}) and reb and (reb.get("sell") or reb.get("buy")):
+            from .rebalance import rebalance_summary_text
+            reb_text = rebalance_summary_text(reb)
+            system = (
+                "You are an expert Thai quant trader. Summarize the rebalance actions (Sell and Buy) "
+                "for today. Focus specifically on explaining WHY each stock is being sold (e.g., target weight decreased, "
+                "taking profit, or cutting loss based on the price). Keep it concise, professional, and in Thai."
+            )
+            prompt = (
+                f"Market News:\n{news_text or 'No news'}\n\n"
+                f"Rebalance Actions:\n{reb_text}\n\n"
+                f"Please summarize and explain the decisions, especially the SELL actions."
+            )
+            print("\n[run] Fetching Claude analysis...")
+            claude_summary = pmap["claude"].complete(prompt, system=system)
+    except Exception as e:
+        print(f"\n[run] Failed to fetch Claude analysis: {e}")
+
     # 7. Execute via Settrade Open API
     execution_responses = None
     if getattr(args, "execute", False):
@@ -331,7 +352,8 @@ def cmd_run(args: argparse.Namespace) -> None:
         rebalance=reb,
         evaluation=evaluation,
         news=news_text,
-        execution_responses=execution_responses
+        execution_responses=execution_responses,
+        claude_summary=claude_summary
     )
     try:
         print("\n" + message)
