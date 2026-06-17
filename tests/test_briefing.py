@@ -57,7 +57,9 @@ def test_briefing_assembles_sections_from_providers(data_dir):
         FakeProvider("gemini", reply="NEWS"),
         FakeProvider("deepseek", reply="VERIFY"),
     ]
-    briefing = generate_briefing(get_settings(), synthetic=True, providers=providers)
+    settings = get_settings()
+    settings.llm.enabled = True
+    briefing = generate_briefing(settings, synthetic=True, providers=providers)
     # No previous signal stored -> no evaluation -> deepseek not called
     assert briefing["sections"].get("news") == "NEWS"
     assert briefing["sections"].get("orders") == "ORDER PLAN"
@@ -71,7 +73,9 @@ def test_unavailable_provider_is_skipped(data_dir):
     _write_last_signal(data_dir, _signal())
     gem = FakeProvider("gemini", available=False)
     providers = [FakeProvider("claude", reply="ORDER PLAN"), gem]
-    briefing = generate_briefing(get_settings(), synthetic=True, providers=providers)
+    settings = get_settings()
+    settings.llm.enabled = True
+    briefing = generate_briefing(settings, synthetic=True, providers=providers)
     assert gem.calls == 0
     assert "news" not in briefing["sections"]
     assert briefing["sections"].get("orders") == "ORDER PLAN"
@@ -80,7 +84,9 @@ def test_unavailable_provider_is_skipped(data_dir):
 def test_failing_provider_degrades_gracefully(data_dir):
     _write_last_signal(data_dir, _signal())
     providers = [FakeProvider("claude", raises=True), FakeProvider("gemini", reply="NEWS")]
-    briefing = generate_briefing(get_settings(), synthetic=True, providers=providers)
+    settings = get_settings()
+    settings.llm.enabled = True
+    briefing = generate_briefing(settings, synthetic=True, providers=providers)
     # Claude raised -> orders omitted, but briefing still builds with news + table
     assert briefing["sections"].get("orders") is None
     assert briefing["sections"].get("news") == "NEWS"
@@ -90,7 +96,9 @@ def test_failing_provider_degrades_gracefully(data_dir):
 
 def test_no_providers_still_shows_signal_table(data_dir):
     _write_last_signal(data_dir, _signal())
-    briefing = generate_briefing(get_settings(), synthetic=True, providers=[])
+    settings = get_settings()
+    settings.llm.enabled = True
+    briefing = generate_briefing(settings, synthetic=True, providers=[])
     assert briefing["providers_used"] == []
     msg = format_briefing(briefing)
     assert "AAA" in msg and "BBB" in msg
@@ -103,7 +111,9 @@ def test_previous_signal_triggers_evaluation(data_dir):
     append_signal_history(_signal(date="2026-06-09"), data_dir)
     _write_last_signal(data_dir, _signal(date="2026-06-12"))
     deepseek = FakeProvider("deepseek", reply="VERIFY")
-    briefing = generate_briefing(get_settings(), synthetic=True, providers=[deepseek])
+    settings = get_settings()
+    settings.llm.enabled = True
+    briefing = generate_briefing(settings, synthetic=True, providers=[deepseek])
     assert briefing["evaluation"] is not None
     assert deepseek.calls == 1
     assert briefing["sections"].get("verification") == "VERIFY"
