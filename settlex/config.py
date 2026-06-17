@@ -84,7 +84,7 @@ class LLMConfig:
     anthropic_api_key: Optional[str] = None
     anthropic_model: str = "claude-opus-4-8"
     gemini_api_key: Optional[str] = None
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.5-flash"
     deepseek_api_key: Optional[str] = None
     deepseek_model: str = "deepseek-chat"
     deepseek_base_url: str = "https://api.deepseek.com"
@@ -96,7 +96,7 @@ class LLMConfig:
             anthropic_api_key=_get("ANTHROPIC_API_KEY"),
             anthropic_model=_get("ANTHROPIC_MODEL", "claude-opus-4-8"),
             gemini_api_key=_get("GEMINI_API_KEY"),
-            gemini_model=_get("GEMINI_MODEL", "gemini-2.5-flash"),
+            gemini_model=_get("GEMINI_MODEL", "gemini-3.5-flash"),
             deepseek_api_key=_get("DEEPSEEK_API_KEY"),
             deepseek_model=_get("DEEPSEEK_MODEL", "deepseek-chat"),
             deepseek_base_url=_get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
