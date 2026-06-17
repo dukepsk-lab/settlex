@@ -22,13 +22,13 @@ def test_format_contains_symbols_and_disclaimer():
     msg = format_signal(_result())
     assert "PTT" in msg and "AOT" in msg
     assert "SETTLEX" in msg
-    assert "Not financial advice" in msg
+    assert "เงินทุนเริ่มต้น" in msg
 
 
 def test_format_cash_when_no_positions():
     result = _result()
     result["positions"] = []
-    assert "cash" in format_signal(result).lower()
+    assert "ถือเงินสด" in format_signal(result)
 
 
 def test_chunk_splits_long_text():
