@@ -302,6 +302,7 @@ def cmd_run(args: argparse.Namespace) -> None:
 
     # 6. LLM News
     news_text = None
+    claude_overlay = None
     try:
         providers = build_providers(settings)
         pmap = {p.name: p for p in providers if p.is_available()}
@@ -312,8 +313,44 @@ def cmd_run(args: argparse.Namespace) -> None:
                 f"or key news on {result['date']}. Keep it concise, engaging, and in Thai."
             )
             news_text = pmap["gemini"].complete(prompt, "You are an expert Thai stock market analyst.")
+
+        if "claude" in pmap and news_text:
+            import json
+            prompt_claude = (
+                f"ข่าววันนี้:\n{news_text}\n\nแผนการปรับพอร์ต (ML Rebalance): {reb}\n\n"
+                f"พิจารณาข่าวที่ได้มานี้แล้ว เป็น Risk Manager คัดกรองหุ้นที่ไม่ควรส่งคำสั่งซื้อขายวันนี้ "
+                f"หากหุ้นตัวไหนมีข่าวลบรุนแรงให้ตัดออกจากการซื้อ หรือถ้ามีข่าวบวกให้ถือต่อแทนที่จะขาย "
+                f"สิ่งสำคัญ: ต้องตอบกลับเป็น JSON format เท่านั้น โดยมีรูปแบบดังนี้:\n"
+                f"{{\n"
+                f"  \"approved_symbols\": [\"PTT\", \"AOT\"],\n"
+                f"  \"reasoning\": \"เหตุผลสั้นๆ สำหรับการปรับพอร์ต\"\n"
+                f"}}\n"
+                f"รายชื่อหุ้นใน approved_symbols จะถูกนำไปส่งคำสั่งต่อ หุ้นที่ถูกตัดออกจะไม่ถูกส่งคำสั่ง"
+            )
+            claude_raw = pmap["claude"].complete(prompt_claude, "You are an expert Thai stock market risk manager. Output JSON only.")
+            try:
+                # find json block if wrapped in markdown
+                if "```json" in claude_raw:
+                    claude_raw = claude_raw.split("```json")[1].split("```")[0].strip()
+                elif "```" in claude_raw:
+                    claude_raw = claude_raw.split("```")[1].strip()
+
+                claude_data = json.loads(claude_raw)
+                approved = claude_data.get("approved_symbols", [])
+                reasoning = claude_data.get("reasoning", "")
+
+                # Filter rebalance actions
+                reb["buy"] = [r for r in reb.get("buy", []) if r["symbol"] in approved]
+                reb["sell"] = [r for r in reb.get("sell", []) if r["symbol"] in approved]
+                reb["hold"] = [r for r in reb.get("hold", []) if r["symbol"] in approved]
+
+                claude_overlay = f"✅ อนุมัติ: {', '.join(approved) if approved else 'ไม่มี'}\n💡 เหตุผล: {reasoning}"
+            except Exception as parse_e:
+                print(f"\n[run] Failed to parse Claude JSON, proceeding with ML original: {parse_e}")
+                claude_overlay = f"⚠️ ระบบวิเคราะห์ข่าวผิดพลาด จะส่งคำสั่งตาม ML 100%"
+
     except Exception as e:
-        print(f"\n[run] Failed to fetch LLM news: {e}")
+        print(f"\n[run] Failed to fetch LLM news/overlay: {e}")
 
     # 7. Execute via Settrade Open API
     execution_responses = None
@@ -333,7 +370,8 @@ def cmd_run(args: argparse.Namespace) -> None:
         rebalance=reb,
         evaluation=evaluation,
         news=news_text,
-        execution_responses=execution_responses
+        execution_responses=execution_responses,
+        claude_overlay=claude_overlay
     )
     try:
         print("\n" + message)
