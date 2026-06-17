@@ -14,8 +14,8 @@ def load_manual_portfolio(data_dir: Path) -> Optional[Dict]:
     {
       "cash": 945.22,
       "positions": {
-        "BGRIM": { "shares": 100, "market_value": 1660.0 },
-        "PTT": { "shares": 50, "market_value": 1750.0 }
+        "BGRIM": { "shares": 100, "market_value": 1660.0, "average_cost": 16.50 },
+        "PTT": { "shares": 50, "market_value": 1750.0, "average_cost": 34.00 }
       }
     }
     """
@@ -32,7 +32,8 @@ def load_manual_portfolio(data_dir: Path) -> Optional[Dict]:
         for sym, p in data.get("positions", {}).items():
             positions[sym] = {
                 "shares": int(p.get("shares", 0)),
-                "market_value": float(p.get("market_value", 0.0))
+                "market_value": float(p.get("market_value", 0.0)),
+                "average_cost": float(p.get("average_cost", 0.0))
             }
         
         return {"cash": cash, "positions": positions}

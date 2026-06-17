@@ -24,35 +24,23 @@ def generate_signal(
     """Produce today's signal as a dict (see :func:`signals.telegram.format_signal`)."""
     settings = settings or get_settings()
 
+    symbols = load_universe()
+    ohlcv = load_universe_ohlcv(symbols, settings, synthetic=synthetic)
+    if not ohlcv:
+        raise RuntimeError("No OHLCV data loaded for the universe.")
+
     if capital is None and not synthetic:
         from ..data.portfolio import load_manual_portfolio
         live_port = load_manual_portfolio(settings.data_dir)
         
         if live_port is not None:
-            fetched = live_port["cash"] + sum(p["market_value"] for p in live_port["positions"].values())
+            fetched = live_port["cash"]
+            for sym, p in live_port["positions"].items():
+                price = float(ohlcv[sym].iloc[-1]["close"]) if sym in ohlcv and not ohlcv[sym].empty else p.get("market_value", 0) / max(1, p.get("shares", 1))
+                fetched += p.get("shares", 0) * price
             if fetched > 0:
                 capital = fetched
-        elif settings.settrade.is_complete and settings.settrade.account_no:
-            try:
-                from ..data.settrade_client import SettradeClient
-                client = SettradeClient(settings.settrade)
-                live_port = client.get_live_portfolio()
-                if live_port is not None:
-                    fetched = live_port["cash"] + sum(p["market_value"] for p in live_port["positions"].values())
-                    if fetched > 0:
-                        capital = fetched
-                else:
-                    fetched = client.get_account_equity()
-                    if fetched and fetched > 0:
-                        capital = fetched
-            except Exception:
-                pass
     capital = settings.capital if capital is None else capital
-
-    symbols = load_universe()
-    ohlcv = load_universe_ohlcv(symbols, settings, synthetic=synthetic)
-    if not ohlcv:
-        raise RuntimeError("No OHLCV data loaded for the universe.")
 
     index_close = equal_weight_index_close(ohlcv)
 

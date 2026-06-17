@@ -280,12 +280,6 @@ def cmd_run(args: argparse.Namespace) -> None:
     live_portfolio = None
     if not args.synthetic:
         live_portfolio = load_manual_portfolio(settings.data_dir)
-        if live_portfolio is None and settings.settrade.is_complete and settings.settrade.account_no:
-            try:
-                from .data.settrade_client import SettradeClient
-                live_portfolio = SettradeClient(settings.settrade).get_live_portfolio()
-            except Exception:
-                pass
 
     # 4. Compute rebalance
     prev = load_previous_signal(settings.data_dir, before=result["date"])
