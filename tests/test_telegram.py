@@ -12,8 +12,8 @@ def _result():
         "capital": 1_000_000,
         "model_agreement": 0.5,
         "positions": [
-            {"symbol": "PTT", "weight": 0.30, "thb": 300000, "pred_return": 0.031},
-            {"symbol": "AOT", "weight": 0.20, "thb": 200000, "pred_return": 0.020},
+            {"symbol": "PTT", "weight": 0.30, "thb": 300000, "price": 32.50, "pred_return": 0.031},
+            {"symbol": "AOT", "weight": 0.20, "thb": 200000, "price": 60.25, "pred_return": 0.020},
         ],
     }
 
