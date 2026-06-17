@@ -104,10 +104,12 @@ def _format_rebalance_lines(reb: Optional[Dict]) -> List[str]:
 
 
 def _news_prompt(signal: Dict) -> str:
+    import datetime as dt
     syms = ", ".join(p["symbol"] for p in signal.get("positions", []))
+    today = dt.date.today().isoformat()
     return (
-        f"วันที่ {signal.get('date')}. สรุปข่าวสำคัญวันนี้ของตลาดหุ้นไทย (SET) "
-        f"และของหุ้นกลุ่มนี้โดยเฉพาะ: {syms}. เน้นข่าวที่อาจกระทบราคาในระยะ 3-5 วัน."
+        f"อัปเดตข่าวล่าสุดจนถึงวันนี้ ({today}). สรุปข่าวสำคัญล่าสุดของตลาดหุ้นไทย (SET) "
+        f"และของหุ้นกลุ่มนี้โดยเฉพาะ: {syms}. เน้นข่าวประเด็นร้อนที่อาจกระทบราคาในระยะ 3-5 วัน."
     )
 
 
