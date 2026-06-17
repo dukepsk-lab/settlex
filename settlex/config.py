@@ -100,7 +100,7 @@ class LLMConfig:
             deepseek_api_key=_get("DEEPSEEK_API_KEY"),
             deepseek_model=_get("DEEPSEEK_MODEL", "deepseek-chat"),
             deepseek_base_url=_get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
-            enabled=_get("SETTLEX_LLM_ENABLED", "1") not in ("0", "false", "False"),
+            enabled=_get("SETTLEX_LLM_ENABLED", "0") in ("1", "true", "True"),
         )
 
 

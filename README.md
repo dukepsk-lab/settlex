@@ -117,7 +117,7 @@ Install the SDKs with `pip install -e ".[llm]"`. Each provider is **independent
 and optional** — a missing key (or a failed call) simply omits that section; the
 deterministic target-allocation table and rebalance always show. **LLMs never
 change the Top-N or weights** — the ML model remains the sole decision-maker.
-Disable all LLM sections with `SETTLEX_LLM_ENABLED=0`.
+Enable all LLM sections with `SETTLEX_LLM_ENABLED=1` (disabled by default due to potential high API demand).
 
 Example VPS cron (07:00 Asia/Bangkok, weekdays):
 

@@ -12,8 +12,8 @@ def _result():
         "capital": 1_000_000,
         "model_agreement": 0.5,
         "positions": [
-            {"symbol": "PTT", "weight": 0.30, "thb": 300000, "pred_return": 0.031},
-            {"symbol": "AOT", "weight": 0.20, "thb": 200000, "pred_return": 0.020},
+            {"symbol": "PTT", "weight": 0.30, "thb": 300000, "price": 32.50, "pred_return": 0.031},
+            {"symbol": "AOT", "weight": 0.20, "thb": 200000, "price": 60.25, "pred_return": 0.020},
         ],
     }
 
@@ -22,13 +22,13 @@ def test_format_contains_symbols_and_disclaimer():
     msg = format_signal(_result())
     assert "PTT" in msg and "AOT" in msg
     assert "SETTLEX" in msg
-    assert "Not financial advice" in msg
+    assert "เงินทุนเริ่มต้น" in msg
 
 
 def test_format_cash_when_no_positions():
     result = _result()
     result["positions"] = []
-    assert "cash" in format_signal(result).lower()
+    assert "ถือเงินสด" in format_signal(result)
 
 
 def test_chunk_splits_long_text():

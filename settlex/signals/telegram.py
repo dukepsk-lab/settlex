@@ -76,12 +76,16 @@ def format_signal(result: Dict, live_portfolio: Optional[Dict] = None, rebalance
         invested = sum(p["weight"] for p in positions)
         lines.append("📊 *พอร์ตเป้าหมาย (ML Model):*")
         lines.append("```")
-        lines.append(f"{'#':<2}{'SYM':<6}{'WT':>6}{'SHARES':>8}{'THB':>10}{'PRED':>7}")
+        lines.append(f"{'#':<2}{'SYM':<6}{'WT':>6}{'SHARES':>8}{'THB':>10}{'PRICE':>8}{'PRED':>7}")
         for i, p in enumerate(positions, 1):
             s_text = str(p.get("shares", "-"))
+            price = p.get("price")
+            price_text = f"{price:>8.2f}" if price is not None else f"{'-':>8}"
+            pred = p.get("pred_return")
+            pred_text = f"{pred*100:>6.1f}%" if pred is not None else f"{'-':>7}"
             lines.append(
                 f"{i:<2}{p['symbol']:<6}{p['weight']*100:>5.1f}%"
-                f"{s_text:>8}{p['thb']:>10,.0f}{p['pred_return']*100:>6.1f}%"
+                f"{s_text:>8}{p['thb']:>10,.0f}{price_text}{pred_text}"
             )
         lines.append("```")
         cash = max(0.0, 1.0 - invested)
@@ -148,10 +152,14 @@ def format_run_message(
     if positions:
         lines.append("📊 *พอร์ตเป้าหมาย:*")
         lines.append("```")
-        lines.append(f"{'#':<2}{'SYM':<6}{'WT':>6}{'SHARES':>8}{'THB':>10}")
+        lines.append(f"{'#':<2}{'SYM':<6}{'WT':>6}{'SHARES':>8}{'THB':>10}{'PRICE':>8}{'PRED':>7}")
         for i, p in enumerate(positions, 1):
             s_text = str(p.get("shares", "-"))
-            lines.append(f"{i:<2}{p['symbol']:<6}{p['weight']*100:>5.1f}%{s_text:>8}{p['thb']:>10,.0f}")
+            price = p.get("price")
+            price_text = f"{price:>8.2f}" if price is not None else f"{'-':>8}"
+            pred = p.get("pred_return")
+            pred_text = f"{pred*100:>6.1f}%" if pred is not None else f"{'-':>7}"
+            lines.append(f"{i:<2}{p['symbol']:<6}{p['weight']*100:>5.1f}%{s_text:>8}{p['thb']:>10,.0f}{price_text}{pred_text}")
         lines.append("```")
         lines.append("")
 
