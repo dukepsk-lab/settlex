@@ -21,6 +21,9 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
 
+import logging
+logging.getLogger("tensorflow").setLevel(logging.ERROR)
+
 from .config import get_settings
 
 

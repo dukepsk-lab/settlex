@@ -31,9 +31,27 @@ class GeminiProvider(LLMProvider):
             system_instruction=system,
             max_output_tokens=max_tokens,
         )
-        resp = client.models.generate_content(
-            model=self._cfg.gemini_model,
-            contents=prompt,
-            config=config,
-        )
-        return (resp.text or "").strip()
+        
+        models = [self._cfg.gemini_model, "gemini-3.1-flash-lite", "gemini-3-flash-preview"]
+        last_err = None
+        
+        for model in models:
+            try:
+                resp = client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=config,
+                )
+                return (resp.text or "").strip()
+            except Exception as e:
+                last_err = e
+                err_str = str(e).lower()
+                if "503" in err_str or "unavailable" in err_str or "high demand" in err_str:
+                    print(f"[warn] Gemini model {model} failed (High Demand), falling back...")
+                    continue
+                else:
+                    raise e
+                    
+        if last_err:
+            raise last_err
+        return ""
