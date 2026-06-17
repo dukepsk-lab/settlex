@@ -19,6 +19,7 @@ import os
 # Suppress noisy TensorFlow C++ warnings and info messages
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
 
 from .config import get_settings
 
