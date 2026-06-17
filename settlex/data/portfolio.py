@@ -25,7 +25,10 @@ def load_manual_portfolio(data_dir: Path) -> Optional[Dict]:
         
     try:
         with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+            content = f.read()
+            import re
+            content = re.sub(r',\s*([\]}])', r'\1', content)
+            data = json.loads(content)
             
         cash = float(data.get("cash", 0.0))
         positions = {}
