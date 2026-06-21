@@ -248,6 +248,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--capital", type=float, default=None, help="override capital in THB")
     p.add_argument("--dry-run", action="store_true", help="print only; do not send to Telegram or execute orders")
     p.add_argument("--execute", action="store_true", help="automatically execute order diff via InnovestX webhook")
+    p.add_argument("--force", action="store_true", help="force run even if market is closed")
     p.set_defaults(func=cmd_run)
 
     return parser
@@ -268,7 +269,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     
     # 1. Check Advisory
     advisory = generate_advisory(settings)
-    if not advisory.get("is_trading_day", True):
+    if not advisory.get("is_trading_day", True) and not args.force:
         msg = f"📉 *SETTLEX Report* ({advisory.get('date', '?')})\n\nวันนี้ตลาดปิดครับ พักผ่อนได้เลย 🏖️"
         print(msg)
         if not args.dry_run and settings.telegram.is_complete:
