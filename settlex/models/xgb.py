@@ -47,11 +47,28 @@ class XGBModel(Predictor):
         return self
 
     def predict(self, X_seq: np.ndarray, X_flat: np.ndarray) -> np.ndarray:
+        import xgboost as xgb
+        if isinstance(self.model, xgb.Booster):
+            return self.model.predict(xgb.DMatrix(X_flat))
         return self.model.predict(X_flat)
 
     def feature_importances(self):
+        import xgboost as xgb
         if self.model is None:
             return {}
+        if isinstance(self.model, xgb.Booster):
+            # Booster returns { 'f0': score, 'f1': score, ... }
+            scores = self.model.get_score(importance_type='gain')
+            # Map 'fX' back to feature_names if possible
+            result = {}
+            for k, v in scores.items():
+                try:
+                    idx = int(k[1:])
+                    name = self.feature_names[idx] if self.feature_names and idx < len(self.feature_names) else k
+                    result[name] = v
+                except ValueError:
+                    result[k] = v
+            return result
         return dict(zip(self.feature_names or [], self.model.feature_importances_.tolist()))
 
     def save(self, path: Path) -> None:
@@ -62,11 +79,19 @@ class XGBModel(Predictor):
 
     @classmethod
     def load(cls, path: Path) -> "XGBModel":
-        from xgboost import XGBRegressor
+        import xgboost as xgb
 
         path = Path(path)
         meta = json.loads((path / "meta.json").read_text())
         obj = cls(feature_names=meta["feature_names"])
-        obj.model = XGBRegressor()
-        obj.model.load_model(str(path / "xgb.json"))
+        
+        try:
+            from xgboost import XGBRegressor
+            obj.model = XGBRegressor()
+            obj.model.load_model(str(path / "xgb.json"))
+        except TypeError:
+            # Fallback for XGBoost version mismatch (TypeError: `_estimator_type` undefined)
+            obj.model = xgb.Booster()
+            obj.model.load_model(str(path / "xgb.json"))
+            
         return obj
