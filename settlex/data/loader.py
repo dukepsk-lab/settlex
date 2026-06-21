@@ -139,5 +139,5 @@ def equal_weight_index_close(ohlcv: Dict[str, pd.DataFrame]) -> pd.Series:
     if not closes:
         return pd.Series(dtype=float)
     price = pd.DataFrame(closes).sort_index()
-    daily = price.pct_change().mean(axis=1).fillna(0.0)
+    daily = price.pct_change(fill_method=None).mean(axis=1).fillna(0.0)
     return (1 + daily).cumprod()
