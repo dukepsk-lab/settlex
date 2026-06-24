@@ -36,14 +36,14 @@ def execute_orders(rebalance: Dict[str, Any], config: SettradeConfig, signal_dat
             buys.append({'symbol': r['symbol'], 'qty': r['shares']})
 
     for s in sells:
-        responses.extend(_send_order(equity, market, 'Sell', s['symbol'], s['qty']))
+        responses.extend(_send_order(equity, market, 'Sell', s['symbol'], s['qty'], config.pin))
         
     for b in buys:
-        responses.extend(_send_order(equity, market, 'Buy', b['symbol'], b['qty']))
+        responses.extend(_send_order(equity, market, 'Buy', b['symbol'], b['qty'], config.pin))
 
     return responses
 
-def _send_order(equity, market, side: str, symbol: str, quantity: int) -> list:
+def _send_order(equity, market, side: str, symbol: str, quantity: int, pin: str) -> list:
     if quantity <= 0:
         return []
         
@@ -59,9 +59,6 @@ def _send_order(equity, market, side: str, symbol: str, quantity: int) -> list:
             return [{'symbol': symbol, 'side': side, 'status': 'Failed', 'error': 'Could not get reference price'}]
             
         price = float(ref_price)
-        
-        import os
-        pin = os.getenv('SETTRADE_PIN', '000000')
         
         if board_lot > 0:
             try:
