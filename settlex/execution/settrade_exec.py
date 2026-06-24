@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from ..config import SettradeConfig
 
@@ -101,3 +101,36 @@ def _send_order(equity, market, side: str, symbol: str, quantity: int) -> list:
         error_msg = str(e)
         logging.error(f'Settrade {side} {quantity} {symbol}: {error_msg}')
         return [{'symbol': symbol, 'side': side, 'qty': quantity, 'status': 'Failed', 'error': error_msg}]
+
+def fetch_live_portfolio(config: SettradeConfig) -> Optional[Dict]:
+    """Fetch live cash balance and equity portfolio from Settrade API."""
+    if not config.is_complete:
+        return None
+    try:
+        from settrade_v2 import Investor
+        investor = Investor(
+            app_id=config.app_id,
+            app_secret=config.app_secret,
+            broker_id=config.broker_id,
+            app_code=config.app_code,
+            is_auto_queue=False
+        )
+        equity = investor.Equity(config.account_no)
+        info = equity.get_account_info()
+        port = equity.get_portfolios()
+        
+        cash = info.get("lineAvailable", 0.0)
+        positions = {}
+        for p in port.get("portfolioList", []):
+            sym = p.get("symbol", "").strip()
+            shares = p.get("actualVolume", 0)
+            if shares > 0 and sym:
+                positions[sym] = {
+                    "shares": shares,
+                    "market_value": p.get("marketValue", 0.0),
+                    "average_cost": p.get("averagePrice", 0.0)
+                }
+        return {"cash": cash, "positions": positions}
+    except Exception as e:
+        logging.error(f"Failed to fetch live portfolio from Settrade: {e}")
+        return None

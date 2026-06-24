@@ -276,14 +276,22 @@ def cmd_run(args: argparse.Namespace) -> None:
             send_message(msg, settings.telegram)
         return
 
-    # 2. Generate today's target signal
-    print("\n[run] Generating today's signal...")
-    result = generate_signal(settings, synthetic=args.synthetic, capital=args.capital)
-
-    # 3. Load Portfolio
+    # 2. Load Portfolio
     live_portfolio = None
     if not args.synthetic:
-        live_portfolio = load_manual_portfolio(settings.data_dir)
+        if settings.settrade.is_complete:
+            from .execution.settrade_exec import fetch_live_portfolio
+            live_portfolio = fetch_live_portfolio(settings.settrade)
+        if live_portfolio is None:
+            live_portfolio = load_manual_portfolio(settings.data_dir)
+
+    # 3. Generate today's target signal
+    print("\n[run] Generating today's signal...")
+    capital = args.capital
+    if capital is None and live_portfolio is not None:
+        capital = live_portfolio["cash"] + sum(p["market_value"] for p in live_portfolio["positions"].values())
+        
+    result = generate_signal(settings, synthetic=args.synthetic, capital=capital)
 
     # 4. Compute rebalance
     prev = load_previous_signal(settings.data_dir, before=result["date"])
