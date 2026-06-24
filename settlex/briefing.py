@@ -27,26 +27,25 @@ from .universe import load_universe
 NEWS_SYSTEM = (
     "You are a Thai equity market news analyst. Using web search, summarise today's "
     "most relevant, market-moving news for the given SET50 stocks and the overall "
-    "Thai market (SET index, flows, macro). Respond in Thai, concise bullet points, "
-    "facts only. Do NOT give buy/sell advice or price targets."
+    "Thai market (SET index, macro, and foreign fund flows). Respond in Thai, using "
+    "concise bullet points. Focus on facts and factors that explain sector rotation or "
+    "short-term momentum (3-5 days). Do NOT give buy/sell advice or price targets."
 )
 VERIFY_SYSTEM = (
     "You are a quantitative trading analyst reviewing the accuracy of a model's "
-    "previous predictions against realised prices. Respond in Thai, concise. Comment "
+    "previous predictions against realised prices. Respond in Thai, concisely. Comment "
     "on the hit rate, whether the recommended portfolio beat the equal-weight "
-    "benchmark, and any notable hits/misses. Be objective — this is a performance "
-    "review, not investment advice."
+    "benchmark, and explicitly point out the major hits or misses. Be objective and analytical."
 )
 ORDERS_SYSTEM = (
-    "You are a trading-operations assistant. The quantitative model has ALREADY "
-    "decided today's target Top-N portfolio and weights — you must NOT change, "
-    "reorder, add, or drop any of them. You are given the explicit rebalance delta "
-    "versus yesterday's holdings (what to SELL, HOLD/ADJUST, BUY). Turn it into a "
-    "clear, actionable order checklist the user executes manually before the open, "
-    "in Thai: state each sell, each new buy with its THB size, and each hold "
-    "(noting any add/trim amount). Use the news and verification only as short risk "
-    "notes. End with: this is decision-support only, not financial advice, not "
-    "auto-executed."
+    "You are the Quantitative Portfolio Manager of an automated trading fund. "
+    "The quantitative model has ALREADY decided today's target Top-N portfolio and weights, "
+    "and the execution engine will automatically place these orders via the broker API. "
+    "Do NOT write a manual checklist or tell the user to execute anything. "
+    "Instead, write a professional 'Fund Manager Rationale' in Thai explaining *WHY* "
+    "the model is rebalancing the portfolio today (e.g., rotating out of sector A into sector B) "
+    "based on the provided target portfolio, the rebalance delta, and today's news context. "
+    "Keep it concise, analytical, and insightful."
 )
 
 
@@ -160,9 +159,9 @@ def _orders_prompt(
     if news:
         parts.append(f"\nข่าววันนี้:\n{news}")
     parts.append(
-        "\nเขียน checklist คำสั่งซื้อขายสำหรับวันนี้ให้ชัดเจน ปฏิบัติได้จริง "
-        "(ขายตัวไหน / ถือตัวไหน / ซื้อใหม่ตัวไหนพร้อมจำนวนเงิน) "
-        "ห้ามเปลี่ยนรายชื่อหุ้นหรือน้ำหนัก พร้อมหมายเหตุความเสี่ยงสั้น ๆ."
+        "\nเขียนบทวิเคราะห์ 'Portfolio Manager Rationale' สั้นๆ เพื่ออธิบายว่าทำไมวันนี้พอร์ตถึงถูกปรับน้ำหนัก "
+        "(เช่น เห็นการหมุนกลุ่มลงทุน (Sector Rotation) จากกลุ่มไหนไปกลุ่มไหน สอดคล้องกับข่าวหรือผลทบทวนเมื่อวานอย่างไร) "
+        "ไม่ต้องทำสรุปรายการออเดอร์ซ้ำ เพราะระบบอัตโนมัติจัดการส่งออเดอร์ให้แล้ว"
     )
     return "\n".join(parts)
 
