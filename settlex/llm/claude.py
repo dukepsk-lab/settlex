@@ -16,15 +16,32 @@ class ClaudeProvider(LLMProvider):
         return bool(getattr(self._cfg, "anthropic_api_key", None))
 
     def complete(self, prompt: str, system: Optional[str] = None, max_tokens: int = 2048) -> str:
-        import anthropic  # lazy import — only needed when briefing runs
+        import httpx
 
-        client = anthropic.Anthropic(api_key=self._cfg.anthropic_api_key)
-        kwargs = {
+        headers = {
+            "x-api-key": self._cfg.anthropic_api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+        }
+        
+        payload = {
             "model": self._cfg.anthropic_model,
             "max_tokens": max_tokens,
             "messages": [{"role": "user", "content": prompt}],
         }
         if system:
-            kwargs["system"] = system
-        resp = client.messages.create(**kwargs)
-        return "".join(b.text for b in resp.content if b.type == "text").strip()
+            payload["system"] = system
+
+        with httpx.Client(timeout=120.0) as client:
+            for attempt in range(3):
+                try:
+                    resp = client.post("https://api.anthropic.com/v1/messages", headers=headers, json=payload)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    return "".join(b["text"] for b in data.get("content", []) if b.get("type") == "text").strip()
+                except Exception as e:
+                    if attempt == 2:
+                        raise e
+                    import time
+                    time.sleep(2)
+        return ""
