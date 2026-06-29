@@ -31,6 +31,7 @@ llm = ["anthropic>=0.40", "google-genai>=0.3", "openai>=1.40"]
 
 [project.scripts]
 settlex = "settlex.cli:main"
+settlex-v2 = "settlex_v2.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["settlex*"]
