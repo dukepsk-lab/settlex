@@ -55,7 +55,8 @@ cp .env.example .env
 - **Settrade Open API** (optional) — request `APP_ID` / `APP_SECRET` from your
   Thai broker (e.g. Pi Securities) Settrade Open API console. Use
   `SETTRADE_APP_CODE=ALGO_EQ` for equities. Setting `SETTRADE_ACCOUNT_NO` lets
-  `signal` auto-fetch your real portfolio equity as the capital base. Docs:
+  `signal` auto-fetch your real portfolio equity as the capital base.
+  *(Note: The execution engine automatically waits for Sell orders to fully match before placing Buy orders to prevent "Exceed line" errors).* Docs:
   <https://developer.settrade.com/open-api/>
 - **Telegram** — create a bot with [@BotFather](https://t.me/BotFather) for the
   token, message your bot, then read your chat id from
@@ -90,6 +91,10 @@ python -m settlex.cli advisory
 # 6. Pre-market briefing (optional LLMs): verify yesterday + news + order plan
 python -m settlex.cli briefing --dry-run
 python -m settlex.cli briefing
+
+# 7. Unified daily run (Check market + Signal + LLM summary + Execute via Settrade)
+python -m settlex.cli run --dry-run --force
+python -m settlex.cli run --execute
 ```
 
 If installed with `pip install -e .`, the `settlex` console script is available
