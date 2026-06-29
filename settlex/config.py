@@ -42,6 +42,7 @@ class SettradeConfig:
     broker_id: Optional[str] = None
     app_code: Optional[str] = None
     account_no: Optional[str] = None
+    pin: Optional[str] = None
 
     @classmethod
     def from_env(cls) -> "SettradeConfig":
@@ -51,6 +52,7 @@ class SettradeConfig:
             broker_id=_get("SETTRADE_BROKER_ID"),
             app_code=_get("SETTRADE_APP_CODE", "ALGO"),
             account_no=_get("SETTRADE_ACCOUNT_NO"),
+            pin=_get("SETTRADE_PIN", "000000"),
         )
 
     @property
